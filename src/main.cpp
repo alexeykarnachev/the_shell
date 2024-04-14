@@ -4,6 +4,7 @@
 #include "raymath.h"
 #include <array>
 #include <stdio.h>
+#include <tuple>
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -21,13 +22,22 @@ struct GameCamera {
 };
 
 enum class Cell : u8 {
-    EMPTY = 0,
-    WALL = 1 << 0,
+    NONE = 0,
+    EMPTY = 1 << 0,
+    WALL = 1 << 1,
 };
 
 class Grid {
   private:
     std::array<Cell, GRID_N_ROWS * GRID_N_COLS> cells;
+
+    std::tuple<bool, u32> get_cell_idx_at(Vector2 position) {
+        Rectangle bound_rect = this->get_bound_rect();
+        bool is_valid = CheckCollisionPointRec(position, bound_rect);
+        u32 col = position.x - bound_rect.x;
+        u32 row = position.y - bound_rect.y;
+        return {is_valid, row * this->n_rows + col};
+    }
 
   public:
     const u32 n_rows = GRID_N_ROWS;
@@ -56,26 +66,25 @@ class Grid {
     }
 
     Cell get_cell(u32 idx) {
+        if (idx >= this->n_rows * this->n_cols) return Cell::NONE;
         return this->cells[idx];
     }
 
     Cell get_cell(Vector2 position) {
-        return this->cells[this->get_cell_idx_at(position)];
+        auto [is_valid, idx] = this->get_cell_idx_at(position);
+        if (!is_valid) return Cell::NONE;
+        return this->cells[idx];
     }
 
     void set_cell(u32 idx, Cell cell) {
+        if (idx >= this->n_rows * this->n_cols) return;
         this->cells[idx] = cell;
     }
 
     void set_cell(Vector2 position, Cell cell) {
-        this->cells[this->get_cell_idx_at(position)] = cell;
-    }
-
-    u32 get_cell_idx_at(Vector2 position) {
-        Rectangle bound_rect = this->get_bound_rect();
-        u32 col = position.x - bound_rect.x;
-        u32 row = position.y - bound_rect.y;
-        return row * this->n_rows + col;
+        auto [is_valid, idx] = this->get_cell_idx_at(position);
+        if (!is_valid) return;
+        this->cells[idx] = cell;
     }
 };
 
@@ -189,7 +198,7 @@ class Game {
         auto player = this->registry.create();
         this->registry.emplace<Player_C>(player);
         this->registry.emplace<Position_C>(player, Position_C{0.0, 0.0});
-        this->registry.emplace<MoveSpeed_C>(player, 3.0);
+        this->registry.emplace<MoveSpeed_C>(player, 5.0);
     }
 
     ~Game() {
