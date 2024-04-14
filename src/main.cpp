@@ -2,9 +2,11 @@
 #include "entt/entt.hpp"
 #include "raylib.h"
 #include "raymath.h"
+#include "rlgl.h"
 #include <array>
 #include <stdio.h>
 #include <tuple>
+#include <vector>
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -88,6 +90,23 @@ class Grid {
     }
 };
 
+enum UIElementState {
+    COLD,
+    HOT,
+    ACTIVE,
+};
+
+enum UIElementType {
+    PANE,
+    BUTTON,
+};
+
+struct UIElement {
+    UIElementState state;
+    UIElementType type;
+    Rectangle rect;
+};
+
 typedef Vector2 Position_C;
 typedef float MoveSpeed_C;
 struct Player_C {};
@@ -97,16 +116,63 @@ class Game {
     entt::registry registry;
     Grid grid;
     GameCamera camera;
-    Shader shader;
+    Shader world_shader;
+    Shader ui_shader;
+
+    std::vector<UIElement> ui_elements;
 
     void update() {
+        this->update_ui();
         this->update_player_input();
         this->update_camera();
     }
 
-    void update_camera() {
-        auto player = this->registry.view<Player_C>().front();
-        this->camera.target = this->registry.get<Position_C>(player);
+    void update_ui() {
+        this->ui_elements.clear();
+
+        // quick bar
+        {
+            int n_buttons = 10;
+            float padding = 10.0;
+            float gap = 10.0;
+
+            float pane_width = 800.0;
+            float button_width = (pane_width - 2.0 * padding - (n_buttons - 1) * gap)
+                                 / n_buttons;
+            float button_height = button_width;
+            float pane_height = button_height + 2.0 * padding;
+
+            // pane
+            float pane_x = (SCREEN_WIDTH - pane_width) / 2.0;
+            float pane_y = SCREEN_HEIGHT - pane_height;
+            Rectangle rect = {
+                .x = pane_x, .y = pane_y, .width = pane_width, .height = pane_height};
+            this->ui_elements.emplace_back(UIElement{
+                .state = UIElementState::COLD, .type = UIElementType::PANE, .rect = rect}
+            );
+
+            // buttons
+            float button_x = pane_x + padding;
+            float button_y = pane_y + padding;
+            for (int i = 0; i < n_buttons; ++i) {
+                rect = {
+                    .x = button_x,
+                    .y = button_y,
+                    .width = button_width,
+                    .height = button_height};
+                UIElementState state = UIElementState::COLD;
+                bool is_hover = CheckCollisionPointRec(GetMousePosition(), rect);
+                if (is_hover && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+                    state = UIElementState::ACTIVE;
+                } else if (is_hover) {
+                    state = UIElementState::HOT;
+                }
+                this->ui_elements.emplace_back(UIElement{
+                    .state = state, .type = UIElementType::BUTTON, .rect = rect});
+
+                button_x += button_width + gap;
+            }
+        }
     }
 
     void update_player_input() {
@@ -126,37 +192,51 @@ class Game {
         position = Vector2Add(position, step);
     }
 
+    void update_camera() {
+        auto player = this->registry.view<Player_C>().front();
+        this->camera.target = this->registry.get<Position_C>(player);
+    }
+
     void draw() {
+        BeginDrawing();
+        ClearBackground(BLANK);
+
+        BeginShaderMode(this->world_shader);
         float aspect = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
         SetShaderValue(
-            this->shader,
-            GetShaderLocation(this->shader, "camera.position"),
+            this->world_shader,
+            GetShaderLocation(this->world_shader, "camera.position"),
             &this->camera.target,
             SHADER_UNIFORM_VEC2
         );
         SetShaderValue(
-            this->shader,
-            GetShaderLocation(this->shader, "camera.view_width"),
+            this->world_shader,
+            GetShaderLocation(this->world_shader, "camera.view_width"),
             &this->camera.view_width,
             SHADER_UNIFORM_FLOAT
         );
         SetShaderValue(
-            this->shader,
-            GetShaderLocation(this->shader, "camera.aspect"),
+            this->world_shader,
+            GetShaderLocation(this->world_shader, "camera.aspect"),
             &aspect,
             SHADER_UNIFORM_FLOAT
         );
-
-        BeginDrawing();
-        ClearBackground(BLANK);
-
-        BeginShaderMode(this->shader);
         this->draw_grid();
         this->draw_walls();
         auto player = this->registry.view<Player_C>().front();
         auto position = this->registry.get<Position_C>(player);
         DrawCircleV(position, 0.5, RED);
+        EndShaderMode();
 
+        BeginShaderMode(this->ui_shader);
+        Vector2 screen_size = {SCREEN_WIDTH, SCREEN_HEIGHT};
+        SetShaderValue(
+            this->ui_shader,
+            GetShaderLocation(this->ui_shader, "screen_size"),
+            &screen_size,
+            SHADER_UNIFORM_VEC2
+        );
+        this->draw_ui();
         EndShaderMode();
 
         DrawFPS(0, 0);
@@ -185,14 +265,39 @@ class Game {
         }
     }
 
+    void draw_ui() {
+        for (UIElement &element : this->ui_elements) {
+            switch (element.type) {
+                case UIElementType::PANE:
+                    DrawRectangleRec(element.rect, {50, 50, 50, 255});
+                    break;
+                case UIElementType::BUTTON: {
+                    Color color;
+                    switch (element.state) {
+                        case UIElementState::COLD: color = {100, 100, 100, 255}; break;
+                        case UIElementState::HOT: color = {130, 130, 130, 255}; break;
+                        case UIElementState::ACTIVE: color = {160, 160, 160, 255}; break;
+                    }
+
+                    DrawRectangleRec(element.rect, color);
+                    break;
+                }
+            }
+        }
+    }
+
   public:
     Game() {
         SetConfigFlags(FLAG_MSAA_4X_HINT);
         InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "The Shell");
         SetTargetFPS(TARGET_FPS);
+        rlDisableBackfaceCulling();
 
-        this->shader = LoadShader(
-            "resources/shaders/base.vert", "resources/shaders/color.frag"
+        this->world_shader = LoadShader(
+            "resources/shaders/world.vert", "resources/shaders/color.frag"
+        );
+        this->ui_shader = LoadShader(
+            "resources/shaders/screen.vert", "resources/shaders/ui.frag"
         );
 
         auto player = this->registry.create();
@@ -202,7 +307,8 @@ class Game {
     }
 
     ~Game() {
-        UnloadShader(this->shader);
+        UnloadShader(this->world_shader);
+        UnloadShader(this->ui_shader);
         CloseWindow();
     }
 
