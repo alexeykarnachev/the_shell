@@ -47,9 +47,42 @@ Renderer::~Renderer() {
     CloseWindow();
 }
 
-void Renderer::draw(Sprite sprite, Pivot pivot, Color tint, float scale) {
+void Renderer::draw_primitive(Primitive primitive, Vector2 position, Color color) {
+    switch (primitive.type) {
+        case PrimitiveType::CIRCLE:
+            DrawCircleV(position, primitive.circle.radius, color);
+            break;
+        case PrimitiveType::RECTANGLE:
+            DrawRectangle(
+                position.x,
+                position.y,
+                primitive.rectangle.width,
+                primitive.rectangle.hight,
+                color
+            );
+            break;
+        case PrimitiveType::LINE:
+            DrawLineV(primitive.line.start, primitive.line.end, color);
+            break;
+    }
+}
+
+void Renderer::draw_sprite(Sprite sprite, Pivot pivot, Color tint, float scale) {
     Rectangle dst = pivot.get_rect(sprite.src.width * scale, sprite.src.height * scale);
     DrawTexturePro(sprite.texture, sprite.src, dst, {0.0, 0.0}, 0.0, tint);
+}
+
+void Renderer::draw_grid(Rectangle bound_rect, float step, Color color) {
+    for (float x = bound_rect.x; x <= bound_rect.x + bound_rect.width; x += step) {
+        DrawLine(x, bound_rect.y, x, bound_rect.y + bound_rect.height, GRAY);
+    }
+    for (float y = bound_rect.y; y <= bound_rect.y + bound_rect.height; y += step) {
+        DrawLine(bound_rect.x, y, bound_rect.x + bound_rect.width, y, GRAY);
+    }
+}
+
+void Renderer::draw_grid(Grid &grid, Color color) {
+    this->draw_grid(grid.get_bound_rect(), 1.0, color);
 }
 
 void Renderer::begin_drawing() {

@@ -1,19 +1,10 @@
-#include "camera.hpp"
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
-#include "grid.hpp"
 #include "raylib.h"
 #include "raymath.h"
 #include "renderer.hpp"
 #include "resources.hpp"
-#include "rlgl.h"
-#include "sprite.hpp"
-#include <array>
-#include <stdio.h>
-#include <string>
-#include <tuple>
-#include <unordered_map>
-#include <vector>
+#include <cstdint>
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -28,6 +19,8 @@ typedef uint32_t u32;
 typedef Vector2 Position_C;
 typedef float MoveSpeed_C;
 struct Player_C {};
+typedef Primitive DrawPrimitive_C;
+typedef Color Tint_C;
 
 class Game {
   private:
@@ -71,33 +64,17 @@ class Game {
         renderer.begin_drawing();
         renderer.set_camera(this->camera);
 
-        this->draw_grid();
-        this->draw_walls();
-        auto player = this->registry.view<Player_C>().front();
-        auto position = this->registry.get<Position_C>(player);
-        DrawCircleV(position, 0.5, RED);
+        renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
+
+        auto view = registry.view<Position_C, DrawPrimitive_C>();
+        for (auto entity : view) {
+            auto [position, primitive] = view.get(entity);
+            auto tint_p = registry.try_get<Tint_C>(entity);
+            Color color = tint_p ? *tint_p : RED;
+            renderer.draw_primitive(primitive, position, color);
+        }
 
         renderer.end_drawing();
-    }
-
-    void draw_grid() {
-        Rectangle rect = this->grid.get_bound_rect();
-        for (float x = rect.x; x <= rect.x + rect.width; x += 1.0) {
-            DrawLine(x, rect.y, x, rect.y + rect.height, GRAY);
-        }
-        for (float y = rect.y; y <= rect.y + rect.height; y += 1.0) {
-            DrawLine(rect.x, y, rect.x + rect.width, y, GRAY);
-        }
-    }
-
-    void draw_walls() {
-        for (uint32_t i = 0; i < this->grid.get_cells_count(); ++i) {
-            Cell cell = this->grid.get_cell(i);
-            if (cell == Cell::EMPTY) continue;
-
-            Rectangle rect = this->grid.get_cell_rect(i);
-            DrawRectangleRec(rect, RAYWHITE);
-        }
     }
 
   public:
@@ -110,6 +87,11 @@ class Game {
         this->registry.emplace<Player_C>(player);
         this->registry.emplace<Position_C>(player, Position_C{0.0, 0.0});
         this->registry.emplace<MoveSpeed_C>(player, 5.0);
+        this->registry.emplace<DrawPrimitive_C>(
+            player,
+            DrawPrimitive_C{.type = PrimitiveType::CIRCLE, .circle = {.radius = 0.5}}
+        );
+        this->registry.emplace<Tint_C>(player, GREEN);
     }
 
     void run() {
