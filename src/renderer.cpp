@@ -7,27 +7,6 @@
 
 #define TARGET_FPS 60
 
-Pivot::Pivot(PivotType type, Vector2 position)
-    : type(type)
-    , position(position) {}
-
-Rectangle Pivot::get_rect(float width, float height) {
-    Vector2 offset;
-    switch (type) {
-        case PivotType::CENTER_BOTTOM: offset = {-0.5f * width, -height}; break;
-        case PivotType::CENTER_TOP: offset = {-0.5f * width, 0.0}; break;
-        case PivotType::LEFT_CENTER: offset = {0.0, -0.5f * height}; break;
-        case PivotType::RIGHT_CENTER: offset = {-width, -0.5f * height}; break;
-        case PivotType::CENTER_CENTER: offset = {-0.5f * width, -0.5f * height}; break;
-    }
-
-    return {
-        .x = position.x + offset.x,
-        .y = position.y + offset.y,
-        .width = width,
-        .height = height};
-}
-
 Renderer::Renderer(int screen_width, int screen_height) {
     this->screen_width = screen_width;
     this->screen_height = screen_height;
@@ -47,28 +26,33 @@ Renderer::~Renderer() {
     CloseWindow();
 }
 
+Vector2 Renderer::get_screen_size() {
+    return {(float)this->screen_width, (float)this->screen_height};
+}
+
 void Renderer::draw_primitive(Primitive primitive, Vector2 position, Color color) {
     switch (primitive.type) {
         case PrimitiveType::CIRCLE:
             DrawCircleV(position, primitive.circle.radius, color);
             break;
         case PrimitiveType::RECTANGLE:
-            DrawRectangle(
-                position.x,
-                position.y,
+            Rectangle rect = get_rect_from_pivot(
+                position,
+                primitive.rectangle.pivot,
                 primitive.rectangle.width,
-                primitive.rectangle.hight,
-                color
+                primitive.rectangle.hight
             );
-            break;
-        case PrimitiveType::LINE:
-            DrawLineV(primitive.line.start, primitive.line.end, color);
+            DrawRectangleRec(rect, color);
             break;
     }
 }
 
-void Renderer::draw_sprite(Sprite sprite, Pivot pivot, Color tint, float scale) {
-    Rectangle dst = pivot.get_rect(sprite.src.width * scale, sprite.src.height * scale);
+void Renderer::draw_sprite(
+    Sprite sprite, Vector2 position, Pivot pivot, Color tint, float scale
+) {
+    float width = sprite.src.width * scale;
+    float height = sprite.src.height * scale;
+    Rectangle dst = get_rect_from_pivot(position, pivot, width, height);
     DrawTexturePro(sprite.texture, sprite.src, dst, {0.0, 0.0}, 0.0, tint);
 }
 
@@ -98,10 +82,12 @@ void Renderer::end_drawing() {
 }
 
 void Renderer::set_camera(GameCamera camera) {
-    set_camera(camera.target, camera.view_width);
+    this->set_camera(camera.target, camera.view_width);
 }
 
 void Renderer::set_camera(Vector2 position, float view_width) {
+    rlDrawRenderBatchActive();
+
     int position_loc = GetShaderLocation(shader, "camera.position");
     int view_width_loc = GetShaderLocation(shader, "camera.view_width");
     int aspect_loc = GetShaderLocation(shader, "camera.aspect");

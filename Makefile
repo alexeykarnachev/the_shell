@@ -11,4 +11,5 @@ game:
 	./src/grid.cpp \
 	./src/renderer.cpp \
 	./src/resources.cpp \
+	./src/common.cpp \
 	-L./deps/lib/linux -lraylib -lGL -lpthread -ldl
