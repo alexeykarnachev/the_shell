@@ -30,8 +30,8 @@ enum Button_C {
     PRESSED,
 };
 
-struct DrawPrimitive_C {
-    Primitive prim;
+struct Renderable_C {
+    Renderable rend;
     int z;
 };
 
@@ -60,21 +60,26 @@ class Game {
 
         auto pane = registry.create();
         registry.emplace<ScreenPosition_C>(pane, x, y);
-        registry.emplace<DrawPrimitive_C>(
+        registry.emplace<Renderable_C>(
             pane,
-            DrawPrimitive_C{
-                Primitive::create_rect(Pivot::LEFT_CENTER, pane_width, pane_height), 0}
+            Renderable_C{
+                Renderable::create_rectangle(Pivot::LEFT_CENTER, pane_width, pane_height),
+                0}
         );
         registry.emplace<Color_C>(pane, DARKGRAY);
 
-        x += padding;
+        x += padding + 0.5 * item_width;
         for (int i = 0; i < n_items; ++i) {
             auto item = registry.create();
             registry.emplace<ScreenPosition_C>(item, x, y);
-            registry.emplace<DrawPrimitive_C>(
+            registry.emplace<Renderable_C>(
                 item,
-                DrawPrimitive_C{
-                    Primitive::create_rect(Pivot::LEFT_CENTER, item_width, item_height),
+                Renderable_C{
+                    Renderable::create_sprite(
+                        this->resources.sprite_sheet.get_sprite(0),
+                        Pivot::CENTER_CENTER,
+                        2.0
+                    ),
                     1}
             );
             registry.emplace<Button_C>(item, Button_C::COLD);
@@ -92,10 +97,10 @@ class Game {
     void update_buttons() {
         Vector2 cursor = GetMousePosition();
 
-        auto view = registry.view<DrawPrimitive_C, ScreenPosition_C, Button_C>();
+        auto view = registry.view<Renderable_C, ScreenPosition_C, Button_C>();
         for (auto entity : view) {
-            auto [draw_primitive, position, button] = view.get(entity);
-            bool is_hovered = draw_primitive.prim.check_collision_with_point(
+            auto [renderable, position, button] = view.get(entity);
+            bool is_hovered = renderable.rend.check_collision_with_point(
                 position, cursor
             );
 
@@ -129,8 +134,7 @@ class Game {
     }
 
     void draw() {
-        registry.sort<DrawPrimitive_C>([](const DrawPrimitive_C &lhs,
-                                          const DrawPrimitive_C &rhs) {
+        registry.sort<Renderable_C>([](const Renderable_C &lhs, const Renderable_C &rhs) {
             return lhs.z < rhs.z;
         });
 
@@ -140,21 +144,30 @@ class Game {
         renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
 
         {
-            auto view = registry.view<DrawPrimitive_C, WorldPosition_C>();
+            auto view = registry.view<Renderable_C, WorldPosition_C>();
             for (auto entity : view) {
-                auto [draw_primitive, position] = view.get(entity);
+                auto [renderable, position] = view.get(entity);
                 Color color = registry.get_or_emplace<Color_C>(entity, RED);
-                renderer.draw_primitive(draw_primitive.prim, position, color);
+                renderer.draw_renderable(renderable.rend, position, color);
             }
         }
 
         renderer.set_screen_camera();
         {
-            auto view = registry.view<DrawPrimitive_C, ScreenPosition_C>();
+            auto view = registry.view<Renderable_C, ScreenPosition_C>();
             for (auto entity : view) {
-                auto [draw_primitive, position] = view.get(entity);
+                auto [renderable, position] = view.get(entity);
                 Color color = registry.get_or_emplace<Color_C>(entity, RED);
-                renderer.draw_primitive(draw_primitive.prim, position, color);
+                renderer.draw_renderable(renderable.rend, position, color);
+            }
+        }
+
+        {
+            auto view = registry.view<Renderable_C, ScreenPosition_C>();
+            for (auto entity : view) {
+                auto [renderable, position] = view.get(entity);
+                Color color = registry.get_or_emplace<Color_C>(entity, RED);
+                renderer.draw_renderable(renderable.rend, position, color);
             }
         }
 
@@ -172,8 +185,8 @@ class Game {
         registry.emplace<Player_C>(player);
         registry.emplace<WorldPosition_C>(player, WorldPosition_C{0.0, 0.0});
         registry.emplace<MoveSpeed_C>(player, 5.0);
-        registry.emplace<DrawPrimitive_C>(
-            player, DrawPrimitive_C{Primitive::create_circle(0.5), 0}
+        registry.emplace<Renderable_C>(
+            player, Renderable_C{Renderable::create_circle(0.5), 0}
         );
         registry.emplace<Color_C>(player, GREEN);
 

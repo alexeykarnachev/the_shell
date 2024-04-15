@@ -5,8 +5,8 @@
 
 
 struct Sprite {
-    const Texture texture;
-    const Rectangle src;
+    Texture texture;
+    Rectangle src;
 };
 
 class SpriteSheet {

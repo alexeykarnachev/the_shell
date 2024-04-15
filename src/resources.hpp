@@ -4,10 +4,9 @@
 #include "sprite.hpp"
 
 class Resources {
-    private:
+    public:
         SpriteSheet sprite_sheet;
 
-    public:
         Resources(const Resources&) = delete;
         Resources& operator=(const Resources&) = delete;
 

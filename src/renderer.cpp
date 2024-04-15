@@ -7,6 +7,54 @@
 
 #define TARGET_FPS 60
 
+Renderable Renderable::create_circle(float radius) {
+    return {.type = RenderableType::CIRCLE, .circle = {radius}};
+}
+
+Renderable Renderable::create_rectangle(Pivot pivot, float width, float height) {
+    return {.type = RenderableType::RECTANGLE, .rectangle = {pivot, width, height}};
+}
+
+Renderable Renderable::create_sprite(Sprite sprite, Pivot pivot, float scale) {
+    return {.type = RenderableType::SPRITE, .sprite = {sprite, pivot, scale}};
+}
+
+bool Renderable::check_collision_with_point(
+    Vector2 prim_position, Vector2 point_position
+) {
+    bool is_hit = false;
+    switch (this->type) {
+        case RenderableType::RECTANGLE: {
+            Rectangle rect = get_rect_from_pivot(
+                prim_position,
+                this->rectangle.pivot,
+                this->rectangle.width,
+                this->rectangle.hight
+            );
+            is_hit = CheckCollisionPointRec(point_position, rect);
+            break;
+        }
+        case RenderableType::CIRCLE: {
+            is_hit = CheckCollisionPointCircle(
+                point_position, prim_position, this->circle.radius
+            );
+            break;
+        }
+        case RenderableType::SPRITE: {
+            Sprite sprite = this->sprite.sprite;
+            Pivot pivot = this->sprite.pivot;
+            float scale = this->sprite.scale;
+            float width = sprite.src.width * scale;
+            float height = sprite.src.height * scale;
+            Rectangle rect = get_rect_from_pivot(prim_position, pivot, width, height);
+            is_hit = CheckCollisionPointRec(point_position, rect);
+            break;
+        }
+    }
+
+    return is_hit;
+}
+
 Renderer::Renderer(int screen_width, int screen_height) {
     this->screen_width = screen_width;
     this->screen_height = screen_height;
@@ -30,30 +78,32 @@ Vector2 Renderer::get_screen_size() {
     return {(float)this->screen_width, (float)this->screen_height};
 }
 
-void Renderer::draw_primitive(Primitive primitive, Vector2 position, Color color) {
-    switch (primitive.type) {
-        case PrimitiveType::CIRCLE:
-            DrawCircleV(position, primitive.circle.radius, color);
+void Renderer::draw_renderable(Renderable renderable, Vector2 position, Color color) {
+    switch (renderable.type) {
+        case RenderableType::CIRCLE:
+            DrawCircleV(position, renderable.circle.radius, color);
             break;
-        case PrimitiveType::RECTANGLE:
+        case RenderableType::RECTANGLE: {
             Rectangle rect = get_rect_from_pivot(
                 position,
-                primitive.rectangle.pivot,
-                primitive.rectangle.width,
-                primitive.rectangle.hight
+                renderable.rectangle.pivot,
+                renderable.rectangle.width,
+                renderable.rectangle.hight
             );
             DrawRectangleRec(rect, color);
             break;
+        }
+        case RenderableType::SPRITE: {
+            Sprite sprite = renderable.sprite.sprite;
+            Pivot pivot = renderable.sprite.pivot;
+            float scale = renderable.sprite.scale;
+            float width = sprite.src.width * scale;
+            float height = sprite.src.height * scale;
+            Rectangle dst = get_rect_from_pivot(position, pivot, width, height);
+            DrawTexturePro(sprite.texture, sprite.src, dst, {0.0, 0.0}, 0.0, color);
+            break;
+        }
     }
-}
-
-void Renderer::draw_sprite(
-    Sprite sprite, Vector2 position, Pivot pivot, Color tint, float scale
-) {
-    float width = sprite.src.width * scale;
-    float height = sprite.src.height * scale;
-    Rectangle dst = get_rect_from_pivot(position, pivot, width, height);
-    DrawTexturePro(sprite.texture, sprite.src, dst, {0.0, 0.0}, 0.0, tint);
 }
 
 void Renderer::draw_grid(Rectangle bound_rect, float step, Color color) {
