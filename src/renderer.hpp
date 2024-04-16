@@ -20,27 +20,29 @@ typedef struct RenderableCircle {
 typedef struct RenderableRectangle {
     Pivot pivot;
     float width;
-    float hight;
+    float height;
 } RectanglePrimitive;
 
 typedef struct RenderableSprite {
     Sprite sprite;
     Pivot pivot;
-    float scale;
+    float base_scale;
 } RenderableSprite;
 
 class Renderable {
 public:
-    RenderableType type; 
+    RenderableType type;
     union {
         RenderableCircle circle;
         RenderableRectangle rectangle;
         RenderableSprite sprite;
     };
+    float scale;
+    Color color;
 
-    static Renderable create_circle(float radius);
-    static Renderable create_rectangle(Pivot pivot, float width, float height);
-    static Renderable create_sprite(Sprite sprite, Pivot pivot, float scale);
+    static Renderable create_circle(float radius, float scale = 1.0, Color color = RED);
+    static Renderable create_rectangle(Pivot pivot, float width, float height, float scale = 1.0, Color color = RED);
+    static Renderable create_sprite(Sprite sprite, Pivot pivot, float base_scale = 1.0, float scale = 1.0, Color color = BLANK);
 
     bool check_collision_with_point(Vector2 prim_position, Vector2 point_position);
 };
@@ -62,7 +64,8 @@ class Renderer {
         void begin_drawing();
         void end_drawing();
 
-        void draw_renderable(Renderable renderable, Vector2 position, Color color);
+        void draw_renderable(Renderable renderable, Vector2 position);
+
         void draw_grid(Rectangle bound_rect, float step, Color color = GRAY);
         void draw_grid(Grid& grid, Color color = GRAY);
 

@@ -15,21 +15,19 @@
 #define GRID_N_ROWS 100
 #define GRID_N_COLS 100
 
+static const Color PANE_COLOR = {20, 20, 20, 255};
+
 typedef uint8_t u8;
 typedef uint32_t u32;
 
 typedef Vector2 WorldPosition_C;
 typedef Vector2 ScreenPosition_C;
 typedef float MoveSpeed_C;
-typedef Color Color_C;
 struct Player_C {};
-enum Button_C {
-    DISABLED,
-    COLD,
-    HOVERED,
-    PRESSED,
+struct Button_C {
+    bool is_disabled = false;
+    bool is_down = false;
 };
-
 struct Renderable_C {
     Renderable rend;
     int z;
@@ -63,10 +61,11 @@ class Game {
         registry.emplace<Renderable_C>(
             pane,
             Renderable_C{
-                Renderable::create_rectangle(Pivot::LEFT_CENTER, pane_width, pane_height),
+                Renderable::create_rectangle(
+                    Pivot::LEFT_CENTER, pane_width, pane_height, 1.0, PANE_COLOR
+                ),
                 0}
         );
-        registry.emplace<Color_C>(pane, DARKGRAY);
 
         x += padding + 0.5 * item_width;
         for (int i = 0; i < n_items; ++i) {
@@ -76,13 +75,13 @@ class Game {
                 item,
                 Renderable_C{
                     Renderable::create_sprite(
-                        this->resources.sprite_sheet.get_sprite(0),
+                        this->resources.sprite_sheet.get_sprite(i),
                         Pivot::CENTER_CENTER,
                         2.0
                     ),
                     1}
             );
-            registry.emplace<Button_C>(item, Button_C::COLD);
+            registry.emplace<Button_C>(item);
 
             x += item_width + gap;
         }
@@ -97,6 +96,9 @@ class Game {
     void update_buttons() {
         Vector2 cursor = GetMousePosition();
 
+        bool is_lmb_down = IsMouseButtonDown(MOUSE_LEFT_BUTTON);
+        bool is_lmb_released = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
+
         auto view = registry.view<Renderable_C, ScreenPosition_C, Button_C>();
         for (auto entity : view) {
             auto [renderable, position, button] = view.get(entity);
@@ -104,10 +106,20 @@ class Game {
                 position, cursor
             );
 
-            Color color = BLACK;
-            if (is_hovered) color = GRAY;
-
-            registry.emplace_or_replace<Color_C>(entity, color);
+            if (!is_hovered) {
+                button.is_down = false;
+                renderable.rend.scale = 1.0;
+            } else if (is_lmb_released) {
+                button.is_down = false;
+                renderable.rend.scale = 1.0;
+                printf("CLICK!\n");
+            } else if (is_lmb_down) {
+                button.is_down = true;
+                renderable.rend.scale = 0.9;
+            } else {
+                button.is_down = false;
+                renderable.rend.scale = 1.1;
+            }
         }
     }
 
@@ -147,8 +159,7 @@ class Game {
             auto view = registry.view<Renderable_C, WorldPosition_C>();
             for (auto entity : view) {
                 auto [renderable, position] = view.get(entity);
-                Color color = registry.get_or_emplace<Color_C>(entity, RED);
-                renderer.draw_renderable(renderable.rend, position, color);
+                renderer.draw_renderable(renderable.rend, position);
             }
         }
 
@@ -157,17 +168,7 @@ class Game {
             auto view = registry.view<Renderable_C, ScreenPosition_C>();
             for (auto entity : view) {
                 auto [renderable, position] = view.get(entity);
-                Color color = registry.get_or_emplace<Color_C>(entity, RED);
-                renderer.draw_renderable(renderable.rend, position, color);
-            }
-        }
-
-        {
-            auto view = registry.view<Renderable_C, ScreenPosition_C>();
-            for (auto entity : view) {
-                auto [renderable, position] = view.get(entity);
-                Color color = registry.get_or_emplace<Color_C>(entity, RED);
-                renderer.draw_renderable(renderable.rend, position, color);
+                renderer.draw_renderable(renderable.rend, position);
             }
         }
 
@@ -188,7 +189,6 @@ class Game {
         registry.emplace<Renderable_C>(
             player, Renderable_C{Renderable::create_circle(0.5), 0}
         );
-        registry.emplace<Color_C>(player, GREEN);
 
         // ui
         this->create_quick_bar();

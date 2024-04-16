@@ -16,11 +16,11 @@ SpriteSheet::~SpriteSheet() {
 
 Sprite SpriteSheet::get_sprite(uint32_t tile_idx) {
     static uint32_t n_cols = this->texture.width / this->tile_size;
-    float row = tile_idx / (float)n_cols;
-    float col = tile_idx % n_cols;
+    int row = tile_idx / n_cols;
+    int col = tile_idx % n_cols;
     Rectangle src = {
-        .x = col * this->tile_size,
-        .y = row * this->tile_size,
+        .x = (float)col * this->tile_size,
+        .y = (float)row * this->tile_size,
         .width = (float)this->tile_size,
         .height = (float)this->tile_size};
 
