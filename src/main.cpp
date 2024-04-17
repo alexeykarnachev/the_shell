@@ -1,6 +1,7 @@
 #include "common.hpp"
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
+#include "geometry.hpp"
 #include "grid.hpp"
 #include "raylib.h"
 #include "raymath.h"
@@ -26,6 +27,7 @@ typedef Vector2 ScreenPosition_C;
 typedef float MoveSpeed_C;
 typedef Cell *Cell_C;
 struct Player_C {};
+struct Rigid_C {};
 struct Wall_C {};
 struct GUIButton_C {
     bool is_disabled = false;
@@ -98,6 +100,7 @@ class Game {
         this->update_gui_buttons();
         this->update_player_movement();
         this->update_walls_creation();
+        this->update_rigid_collisions();
         this->update_walls_sprites();
         this->update_camera();
     }
@@ -176,6 +179,23 @@ class Game {
         }
     }
 
+    void update_rigid_collisions() {
+        auto view = registry.view<WorldPosition_C, Rigid_C>();
+        for (auto entity : view) {
+            auto [position] = view.get(entity);
+
+            CellNeighborhoodArray nb = this->grid.get_cell_neighborhood_array(position);
+            for (uint32_t i = 0; i < nb.size(); ++i) {
+                Cell *cell = nb[i];
+                if (!cell || cell->type == CellType::EMPTY) continue;
+
+                Rectangle rect = cell->get_rect();
+                Vector2 mtv = get_circle_rect_mtv(position, 0.5, rect);
+                position = Vector2Add(position, mtv);
+            }
+        }
+    }
+
     void update_walls_sprites() {
         auto view = registry.view<Renderable_C, WorldPosition_C, Cell_C, Wall_C>();
         for (auto entity : view) {
@@ -228,7 +248,7 @@ class Game {
         renderer.begin_drawing();
         renderer.set_camera(this->camera);
 
-        // renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
+        renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
 
         {
             auto view = registry.view<Renderable_C, WorldPosition_C>();
@@ -273,6 +293,7 @@ class Game {
         // player
         auto player = registry.create();
         registry.emplace<Player_C>(player);
+        registry.emplace<Rigid_C>(player);
         registry.emplace<WorldPosition_C>(player, WorldPosition_C{0.0, 0.0});
         registry.emplace<MoveSpeed_C>(player, 5.0);
         registry.emplace<Renderable_C>(

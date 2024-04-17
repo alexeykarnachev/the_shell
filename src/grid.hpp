@@ -2,6 +2,7 @@
 #include <array>
 #include <cstdint>
 #include "raylib.h"
+#include "common.hpp"
 
 enum class CellType : uint8_t {
     EMPTY = 1 << 0,
@@ -17,19 +18,24 @@ public:
     CellType type;
 
     Cell();
-    Cell(CellType type, uint32_t idx, Rectangle rect);
+    Cell(uint32_t idx, Rectangle rect, CellType type);
 
     uint32_t get_idx();
     Rectangle get_rect();
 };
 
 struct CellNeighborhood {
-    Cell *mid = nullptr;
     Cell *left = nullptr;
     Cell *top = nullptr;
     Cell *right = nullptr;
     Cell *bottom = nullptr;
+    Cell *left_top = nullptr;
+    Cell *right_top = nullptr;
+    Cell *right_bottom = nullptr;
+    Cell *left_bottom = nullptr;
 };
+
+typedef std::array<Cell*, 8> CellNeighborhoodArray;
 
 class Grid {
   private:
@@ -46,4 +52,6 @@ class Grid {
     Cell* get_cell(Vector2 position);
     CellNeighborhood get_cell_neighborhood(uint32_t idx);
     CellNeighborhood get_cell_neighborhood(Vector2 position);
+    CellNeighborhoodArray get_cell_neighborhood_array(uint32_t idx);
+    CellNeighborhoodArray get_cell_neighborhood_array(Vector2 position);
 };

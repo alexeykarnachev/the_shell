@@ -16,4 +16,15 @@ struct Pivot {
     Vector2 offset = {0.0, 0.0};
 };
 
+enum class Direction {
+    LEFT,
+    TOP,
+    RIGHT,
+    BOTTOM,
+    LEFT_TOP,
+    RIGHT_TOP,
+    RIGHT_BOTTOM,
+    LEFT_BOTTOM,
+};
+
 Rectangle get_rect_from_pivot(Vector2 position, Pivot pivot, float width, float height);
