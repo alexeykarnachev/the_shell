@@ -1,6 +1,7 @@
 #include "common.hpp"
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
+#include "grid.hpp"
 #include "raylib.h"
 #include "raymath.h"
 #include "renderer.hpp"
@@ -23,14 +24,16 @@ typedef uint32_t u32;
 typedef Vector2 WorldPosition_C;
 typedef Vector2 ScreenPosition_C;
 typedef float MoveSpeed_C;
+typedef Cell *Cell_C;
 struct Player_C {};
-struct Button_C {
+struct Wall_C {};
+struct GUIButton_C {
     bool is_disabled = false;
     bool is_down = false;
 };
 struct Renderable_C {
     Renderable rend;
-    int z;
+    float z;
 };
 
 class Game {
@@ -62,7 +65,11 @@ class Game {
             pane,
             Renderable_C{
                 Renderable::create_rectangle(
-                    Pivot::LEFT_CENTER, pane_width, pane_height, 1.0, PANE_COLOR
+                    {.type = PivotType::LEFT_CENTER},
+                    pane_width,
+                    pane_height,
+                    1.0,
+                    PANE_COLOR
                 ),
                 0}
         );
@@ -75,31 +82,33 @@ class Game {
                 item,
                 Renderable_C{
                     Renderable::create_sprite(
-                        this->resources.sprite_sheet.get_sprite(i),
-                        Pivot::CENTER_CENTER,
+                        this->resources.sprite_sheet_32_32.get_sprite(i),
+                        {.type = PivotType::CENTER_CENTER},
                         2.0
                     ),
                     1}
             );
-            registry.emplace<Button_C>(item);
+            registry.emplace<GUIButton_C>(item);
 
             x += item_width + gap;
         }
     }
 
     void update() {
-        this->update_buttons();
-        this->update_player();
+        this->update_gui_buttons();
+        this->update_player_movement();
+        this->update_walls_creation();
+        this->update_walls_sprites();
         this->update_camera();
     }
 
-    void update_buttons() {
+    void update_gui_buttons() {
         Vector2 cursor = GetMousePosition();
 
         bool is_lmb_down = IsMouseButtonDown(MOUSE_LEFT_BUTTON);
         bool is_lmb_released = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
 
-        auto view = registry.view<Renderable_C, ScreenPosition_C, Button_C>();
+        auto view = registry.view<Renderable_C, ScreenPosition_C, GUIButton_C>();
         for (auto entity : view) {
             auto [renderable, position, button] = view.get(entity);
             bool is_hovered = renderable.rend.check_collision_with_point(
@@ -123,7 +132,7 @@ class Game {
         }
     }
 
-    void update_player() {
+    void update_player_movement() {
         float dt = GetFrameTime();
 
         auto player = registry.view<Player_C>().front();
@@ -140,6 +149,72 @@ class Game {
         position = Vector2Add(position, step);
     }
 
+    void update_walls_creation() {
+        Vector2 cursor = this->get_mouse_position_world();
+        Cell *cell = this->grid.get_cell(cursor);
+        if (cell && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+            cell->type = CellType::WALL;
+
+            auto building = registry.create();
+            Rectangle rect = cell->get_rect();
+            Vector2 world_position = {
+                .x = rect.x + 0.5f * rect.width, .y = rect.y + 0.5f * rect.height};
+            Vector2 pivot_offset = {.x = -0.5f * rect.width, .y = 0.5f * rect.height};
+            registry.emplace<Cell_C>(building, cell);
+            registry.emplace<Wall_C>(building);
+            registry.emplace<WorldPosition_C>(building, world_position);
+            registry.emplace<Renderable_C>(
+                building,
+                Renderable_C{
+                    Renderable::create_sprite(
+                        this->resources.sprite_sheet_walls.get_sprite(0),
+                        {.type = PivotType::LEFT_BOTTOM, .offset = pivot_offset},
+                        1.0 / 16.0
+                    ),
+                    world_position.y}
+            );
+        }
+    }
+
+    void update_walls_sprites() {
+        auto view = registry.view<Renderable_C, WorldPosition_C, Cell_C, Wall_C>();
+        for (auto entity : view) {
+            auto [renderable, position, cell] = view.get(entity);
+            CellNeighborhood nb = this->grid.get_cell_neighborhood(position);
+
+            uint8_t w = 0;
+            if (nb.left && nb.left->type == CellType::WALL) w |= 1 << 3;
+            if (nb.top && nb.top->type == CellType::WALL) w |= 1 << 2;
+            if (nb.right && nb.right->type == CellType::WALL) w |= 1 << 1;
+            if (nb.bottom && nb.bottom->type == CellType::WALL) w |= 1 << 0;
+
+            uint32_t idx = 0;
+            switch (w) {
+                case 0b00000000: idx = 1; break;
+                case 0b00000010: idx = 2; break;
+                case 0b00001010: idx = 3; break;
+                case 0b00001000: idx = 4; break;
+                case 0b00000011: idx = 5; break;
+                case 0b00001001: idx = 6; break;
+                case 0b00000101: idx = 7; break;
+                case 0b00000001: idx = 8; break;
+                case 0b00001101: idx = 9; break;
+                case 0b00000111: idx = 10; break;
+                case 0b00001110: idx = 11; break;
+                case 0b00000110: idx = 12; break;
+                case 0b00001100: idx = 13; break;
+                case 0b00001011: idx = 14; break;
+                case 0b00001111: idx = 15; break;
+                case 0b00000100: idx = 16; break;
+                default: TraceLog(LOG_WARNING, "Unhandled wall signature"); break;
+            }
+
+            renderable.rend.sprite.sprite = this->resources.sprite_sheet_walls.get_sprite(
+                idx
+            );
+        }
+    }
+
     void update_camera() {
         auto player = registry.view<Player_C>().front();
         this->camera.target = registry.get<WorldPosition_C>(player);
@@ -153,7 +228,7 @@ class Game {
         renderer.begin_drawing();
         renderer.set_camera(this->camera);
 
-        renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
+        // renderer.draw_grid(this->grid.get_bound_rect(), 1.0);
 
         {
             auto view = registry.view<Renderable_C, WorldPosition_C>();
@@ -175,11 +250,25 @@ class Game {
         renderer.end_drawing();
     }
 
+    Vector2 get_mouse_position_world() {
+        Vector2 screen_size = this->renderer.get_screen_size();
+        Vector2 cursor = GetMousePosition();
+        cursor = Vector2Divide(cursor, screen_size);
+        float aspect = screen_size.x / screen_size.y;
+        float view_height = this->camera.view_width / aspect;
+        Vector2 center = this->camera.target;
+        float left = center.x - 0.5 * this->camera.view_width;
+        float top = center.y - 0.5 * view_height;
+        float x = left + this->camera.view_width * cursor.x;
+        float y = top + view_height * cursor.y;
+        return {x, y};
+    }
+
   public:
     Game()
         : renderer(Renderer(SCREEN_WIDTH, SCREEN_HEIGHT))
         , resources(Resources())
-        , camera(GameCamera(50.0, {0.0, 0.0})) {
+        , camera(GameCamera(30.0, {0.0, 0.0})) {
 
         // player
         auto player = registry.create();

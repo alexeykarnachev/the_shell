@@ -2,6 +2,7 @@
 
 #include <string>
 #include "raylib.h"
+#include <vector>
 
 
 struct Sprite {
@@ -12,14 +13,15 @@ struct Sprite {
 class SpriteSheet {
     private:
         Texture texture;
-        uint32_t tile_size;
+        std::vector<Rectangle> source_rects;
 
     public:
         SpriteSheet(const SpriteSheet&) = delete;
         SpriteSheet& operator=(const SpriteSheet&) = delete;
 
         SpriteSheet();
-        SpriteSheet(std::string file_path, uint32_t tile_size);
+        SpriteSheet(std::string image_file_path, uint32_t tile_width, uint32_t tile_height);
+        SpriteSheet(std::string image_file_path, std::string ase_json_file_path);
         ~SpriteSheet();
 
         Sprite get_sprite(uint32_t tile_idx);

@@ -5,16 +5,35 @@
 #include <cstdint>
 #include <tuple>
 
-Grid::Grid() {
-    this->cells.fill(Cell::EMPTY);
+Cell::Cell()
+    : idx(0)
+    , type(CellType::EMPTY)
+    , rect({.x = 0.0, .y = 0.0, .width = 1.0, .height = 1.0}) {}
+
+Cell::Cell(CellType type, uint32_t idx, Rectangle rect)
+    : type(type)
+    , idx(idx)
+    , rect(rect) {}
+
+uint32_t Cell::get_idx() {
+    return this->idx;
 }
 
-std::tuple<bool, uint32_t> Grid::get_cell_idx_at(Vector2 position) {
+Rectangle Cell::get_rect() {
+    return this->rect;
+}
+
+Grid::Grid() {
     Rectangle bound_rect = this->get_bound_rect();
-    bool is_valid = CheckCollisionPointRec(position, bound_rect);
-    uint32_t col = position.x - bound_rect.x;
-    uint32_t row = position.y - bound_rect.y;
-    return {is_valid, row * N_ROWS + col};
+
+    for (uint32_t idx = 0; idx < N_ROWS * N_COLS; ++idx) {
+        uint32_t row = idx / N_COLS;
+        uint32_t col = idx % N_COLS;
+        float x = bound_rect.x + (float)col;
+        float y = bound_rect.y + (float)row;
+        Rectangle rect = {.x = x, .y = y, .width = 1.0, .height = 1.0};
+        this->cells[idx] = Cell(CellType::EMPTY, idx, rect);
+    }
 }
 
 uint32_t Grid::get_cells_count() {
@@ -30,35 +49,40 @@ Rectangle Grid::get_bound_rect() {
     return rect;
 }
 
-Rectangle Grid::get_cell_rect(uint32_t idx) {
+Cell *Grid::get_cell(uint32_t idx) {
+    if (idx >= N_ROWS * N_COLS) return nullptr;
+    return &this->cells[idx];
+}
+
+Cell *Grid::get_cell(Vector2 position) {
     Rectangle bound_rect = this->get_bound_rect();
+    if (!CheckCollisionPointRec(position, bound_rect)) return nullptr;
+
+    uint32_t col = position.x - bound_rect.x;
+    uint32_t row = position.y - bound_rect.y;
+    uint32_t idx = row * N_ROWS + col;
+    return this->get_cell(idx);
+}
+
+CellNeighborhood Grid::get_cell_neighborhood(uint32_t idx) {
+    CellNeighborhood nb;
+    if (idx >= N_ROWS * N_COLS) return nb;
+
     uint32_t row = idx / N_COLS;
     uint32_t col = idx % N_COLS;
-    float x = bound_rect.x + (float)col;
-    float y = bound_rect.y + (float)row;
-    return {.x = x, .y = y, .width = 1.0, .height = 1.0};
+
+    nb.mid = this->get_cell(idx);
+    if (col > 0) nb.left = this->get_cell(idx - 1);
+    if (col < N_COLS - 1) nb.right = this->get_cell(idx + 1);
+    if (row > 0) nb.top = this->get_cell(idx - N_COLS);
+    if (row < N_ROWS - 1) nb.bottom = this->get_cell(idx + N_COLS);
+
+    return nb;
 }
 
-Cell Grid::get_cell(uint32_t idx) {
-    if (idx >= N_ROWS * N_COLS) return Cell::NONE;
-    return this->cells[idx];
-}
-
-Cell Grid::get_cell(Vector2 position) {
-    auto [is_valid, idx] = this->get_cell_idx_at(position);
-    if (!is_valid) return Cell::NONE;
-    return this->cells[idx];
-}
-
-bool Grid::set_cell(uint32_t idx, Cell cell) {
-    if (idx >= N_ROWS * N_COLS) return false;
-    this->cells[idx] = cell;
-    return true;
-}
-
-bool Grid::set_cell(Vector2 position, Cell cell) {
-    auto [is_valid, idx] = this->get_cell_idx_at(position);
-    if (!is_valid) return false;
-    this->cells[idx] = cell;
-    return true;
+CellNeighborhood Grid::get_cell_neighborhood(Vector2 position) {
+    CellNeighborhood nb;
+    Cell *cell = this->get_cell(position);
+    if (!cell) return nb;
+    return this->get_cell_neighborhood(cell->get_idx());
 }
