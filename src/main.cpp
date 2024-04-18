@@ -202,32 +202,11 @@ class Game {
             auto [renderable, position, cell] = view.get(entity);
             CellNeighborhood nb = this->grid.get_cell_neighborhood(position);
 
-            uint8_t w = 0;
-            if (nb.left && nb.left->type == CellType::WALL) w |= 1 << 3;
-            if (nb.top && nb.top->type == CellType::WALL) w |= 1 << 2;
-            if (nb.right && nb.right->type == CellType::WALL) w |= 1 << 1;
-            if (nb.bottom && nb.bottom->type == CellType::WALL) w |= 1 << 0;
-
-            uint32_t idx = 0;
-            switch (w) {
-                case 0b00000000: idx = 1; break;
-                case 0b00000010: idx = 2; break;
-                case 0b00001010: idx = 3; break;
-                case 0b00001000: idx = 4; break;
-                case 0b00000011: idx = 5; break;
-                case 0b00001001: idx = 6; break;
-                case 0b00000101: idx = 7; break;
-                case 0b00000001: idx = 8; break;
-                case 0b00001101: idx = 9; break;
-                case 0b00000111: idx = 10; break;
-                case 0b00001110: idx = 11; break;
-                case 0b00000110: idx = 12; break;
-                case 0b00001100: idx = 13; break;
-                case 0b00001011: idx = 14; break;
-                case 0b00001111: idx = 15; break;
-                case 0b00000100: idx = 16; break;
-                default: TraceLog(LOG_WARNING, "Unhandled wall signature"); break;
-            }
+            uint8_t idx = 1;
+            if (nb.left && nb.left->type == CellType::WALL) idx += 1 << 3;
+            if (nb.top && nb.top->type == CellType::WALL) idx += 1 << 2;
+            if (nb.right && nb.right->type == CellType::WALL) idx += 1 << 1;
+            if (nb.bottom && nb.bottom->type == CellType::WALL) idx += 1 << 0;
 
             renderable.rend.sprite.sprite = this->resources.sprite_sheet_walls.get_sprite(
                 idx

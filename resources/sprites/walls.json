@@ -151,6 +151,42 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
     "sourceSize": { "w": 16, "h": 16 },
     "duration": 100
+   },
+   {
+    "filename": "walls.aseprite",
+    "frame": { "x": 307, "y": 1, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   {
+    "filename": "walls.aseprite",
+    "frame": { "x": 325, "y": 1, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   {
+    "filename": "walls.aseprite",
+    "frame": { "x": 343, "y": 1, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
+   },
+   {
+    "filename": "walls.aseprite",
+    "frame": { "x": 361, "y": 1, "w": 16, "h": 16 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 16 },
+    "sourceSize": { "w": 16, "h": 16 },
+    "duration": 100
    }
  ],
  "meta": {
@@ -158,7 +194,7 @@
   "version": "1.3-rc2-x64",
   "image": "walls.png",
   "format": "RGBA8888",
-  "size": { "w": 306, "h": 18 },
+  "size": { "w": 378, "h": 18 },
   "scale": "1"
  }
 }
