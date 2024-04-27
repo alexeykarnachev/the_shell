@@ -29,3 +29,14 @@ int get_line_rect_intersection_nearest(
     Vector2 start, Vector2 end, Rectangle rect, Vector2 *intersection
 );
 
+enum class Pivot {
+    CENTER_BOTTOM,
+    CENTER_TOP,
+    LEFT_CENTER,
+    LEFT_BOTTOM,
+    RIGHT_CENTER,
+    CENTER_CENTER,
+};
+
+Rectangle get_rect_from_pivot(Vector2 position, Pivot pivot, float width, float height);
+

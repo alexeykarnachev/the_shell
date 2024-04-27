@@ -1,8 +1,6 @@
 #pragma once
 
-#include "camera.hpp"
-#include "common.hpp"
-#include "grid.hpp"
+#include "geometry.hpp"
 #include "raylib.h"
 #include "sprite.hpp"
 #include <vector>
@@ -67,9 +65,7 @@ class Renderer {
         void draw_renderable(Renderable renderable, Vector2 position);
 
         void draw_grid(Rectangle bound_rect, float step, Color color = GRAY);
-        void draw_grid(Grid& grid, Color color = GRAY);
 
-        void set_camera(GameCamera camera);
         void set_camera(Vector2 position, float view_width);
         void set_screen_camera();
 };

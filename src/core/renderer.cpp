@@ -1,9 +1,7 @@
 #include "renderer.hpp"
 
-#include "camera.hpp"
 #include "raylib.h"
 #include "rlgl.h"
-#include <string>
 
 #define TARGET_FPS 60
 
@@ -48,14 +46,16 @@ bool Renderable::check_collision_with_point(
                 this->rectangle.height * this->scale
             );
             is_hit = CheckCollisionPointRec(point_position, rect);
+            break;
         }
         case RenderableType::CIRCLE: {
             is_hit = CheckCollisionPointCircle(
                 point_position, prim_position, this->circle.radius * this->scale
             );
+            break;
         }
         case RenderableType::SPRITE: {
-            float scale = this->sprite.base_scale;
+            float scale = this->sprite.base_scale * this->scale;
             Rectangle rect = get_rect_from_pivot(
                 prim_position,
                 this->sprite.pivot,
@@ -63,6 +63,7 @@ bool Renderable::check_collision_with_point(
                 this->sprite.sprite.src.height * scale
             );
             is_hit = CheckCollisionPointRec(point_position, rect);
+            break;
         }
     }
 
@@ -139,10 +140,6 @@ void Renderer::draw_grid(Rectangle bound_rect, float step, Color color) {
     }
 }
 
-void Renderer::draw_grid(Grid &grid, Color color) {
-    this->draw_grid(grid.get_bound_rect(), 1.0, color);
-}
-
 void Renderer::begin_drawing() {
     BeginDrawing();
     ClearBackground(BLACK);
@@ -153,10 +150,6 @@ void Renderer::end_drawing() {
     EndShaderMode();
     DrawFPS(0, 0);
     EndDrawing();
-}
-
-void Renderer::set_camera(GameCamera camera) {
-    this->set_camera(camera.target, camera.view_width);
 }
 
 void Renderer::set_camera(Vector2 position, float view_width) {
