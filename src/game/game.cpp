@@ -4,6 +4,7 @@
 #include "raymath.h"
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 
 Vector2 get_mouse_position_world(
     Vector2 screen_size, Vector2 mouse_position_screen, GameCamera &camera
@@ -69,6 +70,10 @@ Vector2 Cell::get_position() {
     return this->position;
 }
 
+CellNeighbors::CellNeighbors() {
+    this->cells.fill(nullptr);
+}
+
 // -----------------------------------------------------------------------
 // Grid
 Grid::Grid() {
@@ -105,6 +110,45 @@ Cell *Grid::get_cell(Vector2 position) {
     return &this->cells[idx];
 }
 
+CellNeighbors Grid::get_cell_neighbors(Vector2 position) {
+    CellNeighbors nb;
+
+    Cell *mid = this->get_cell(position);
+    if (mid) {
+        Vector2 p = mid->get_position();
+        nb.cells[0] = this->get_cell({p.x - 1.0f, p.y});
+        nb.cells[1] = this->get_cell({p.x, p.y - 1.0f});
+        nb.cells[2] = this->get_cell({p.x + 1.0f, p.y});
+        nb.cells[3] = this->get_cell({p.x, p.y + 1.0f});
+    }
+
+    return nb;
+}
+
+WallType Grid::get_wall_type(Vector2 position) {
+    Cell *mid = this->get_cell(position);
+    if (!mid) return WallType::NONE;
+
+    bool is_wall = mid->item.type == ItemType::WALL;
+    bool is_door = mid->item.type == ItemType::DOOR;
+    if (!is_wall && !is_door) return WallType::NONE;
+
+    CellNeighbors nb = this->get_cell_neighbors(position);
+    bool walls[4];
+    for (int i = 0; i < 4; ++i) {
+        bool is_wall = nb.cells[i]->item.type == ItemType::WALL;
+        bool is_door = nb.cells[i]->item.type == ItemType::DOOR;
+        walls[i] = nb.cells[i] && (is_wall || is_door);
+    }
+
+    bool is_horizontal = walls[0] || walls[2];
+    bool is_vertical = walls[1] || walls[3];
+
+    if (is_horizontal && !is_vertical) return WallType::HORIZONTAL;
+    if (!is_horizontal && is_vertical) return WallType::VERTICAL;
+    return WallType::NONE;
+}
+
 Vector2 Grid::round_position(Vector2 position) {
     float x = std::floor(position.x) + 0.5;
     float y = std::floor(position.y) + 0.5;
@@ -117,18 +161,65 @@ bool Grid::can_place_item(const Item *item, Vector2 position) {
     Cell *cell = this->get_cell(position);
     if (!cell) return false;
 
-    if (cell->item.type != ItemType::NONE) return false;
-
-    return true;
+    switch (item->type) {
+        case ItemType::WALL: return cell->item.type == ItemType::NONE;
+        case ItemType::DOOR:
+            if (cell->item.type != ItemType::WALL) return false;
+            if (this->get_wall_type(position) != WallType::NONE) return true;
+            return false;
+        case ItemType::NONE: return false;
+    }
 }
 
-bool Grid::place_item(const Item *item, Vector2 position) {
+bool Grid::place_item(const Item *item, Vector2 position, SpriteSheet &sheet) {
     if (!this->can_place_item(item, position)) return false;
 
     Cell *cell = this->get_cell(position);
     cell->item = *item;
 
+    cell->item.sprite = this->suggest_item_sprite(
+        cell->get_position(), cell->item.type, sheet
+    );
+    for (Cell *cell : this->get_cell_neighbors(position).cells) {
+        cell->item.sprite = this->suggest_item_sprite(
+            cell->get_position(), cell->item.type, sheet
+        );
+    }
+
     return true;
+}
+
+Sprite Grid::suggest_item_sprite(
+    Vector2 position, ItemType item_type, SpriteSheet &sheet
+) {
+    CellNeighbors neighbors = this->get_cell_neighbors(position);
+    uint8_t idx = 0;
+
+    switch (item_type) {
+        case ItemType::WALL:
+            idx = 1;
+            for (int i = 0; i < 4; ++i) {
+                Cell *nb = neighbors.cells[i];
+                if (!nb) continue;
+                bool is_wall = nb->item.type == ItemType::WALL;
+                bool is_door = nb->item.type == ItemType::DOOR;
+                if (is_wall || is_door) {
+                    idx += 1 << (4 - i - 1);
+                }
+            }
+            break;
+        case ItemType::DOOR: {
+            idx = 17;
+            WallType wall_type = this->get_wall_type(position);
+            if (wall_type == WallType::VERTICAL) idx = 18;
+            break;
+        }
+        case ItemType::NONE: {
+            break;
+        }
+    }
+
+    return sheet.get_sprite(idx);
 }
 
 // -----------------------------------------------------------------------
@@ -162,6 +253,7 @@ void Game::draw() {
     this->draw_active_item_ghost();
 
     this->renderer.set_screen_camera();
+    this->input.is_ui_interacted = false;
     this->update_and_draw_quickbar();
 
     this->renderer.end_drawing();
@@ -195,7 +287,7 @@ void Game::update_active_item_placement() {
     if (!this->input.is_lmb_down) return;
     if (!this->grid.can_place_item(item, position)) return;
 
-    grid.place_item(item, position);
+    grid.place_item(item, position, this->resources.sprite_sheet);
 }
 
 void Game::draw_grid_items() {
@@ -226,8 +318,11 @@ void Game::draw_active_item_ghost() {
 
     float base_scale = 1.0 / item->sprite.src.width;
 
+    Sprite sprite = this->grid.suggest_item_sprite(
+        position, item->type, this->resources.sprite_sheet
+    );
     Renderable renderable = Renderable::create_sprite(
-        item->sprite, Pivot::CENTER_CENTER, base_scale, 1.0, color
+        sprite, Pivot::CENTER_CENTER, base_scale, 1.0, color
     );
     this->renderer.draw_renderable(renderable, position);
 }
@@ -249,7 +344,7 @@ void Game::update_and_draw_quickbar() {
         Pivot::LEFT_CENTER, pane_width, pane_height, 1.0, pane_color
     );
     this->renderer.draw_renderable(renderable, position);
-    this->input.is_ui_interacted = renderable.check_collision_with_point(
+    this->input.is_ui_interacted |= renderable.check_collision_with_point(
         position, this->input.mouse_position_screen
     );
 
