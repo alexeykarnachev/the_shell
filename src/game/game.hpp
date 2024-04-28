@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <vector>
 
+// -----------------------------------------------------------------------
+// Input
 class Input {
 public:
     Vector2 mouse_position_world;
@@ -16,10 +18,13 @@ public:
     bool is_lmb_pressed;
     bool is_lmb_released;
     bool is_lmb_down;
+    bool is_ui_interacted;
 
     Input();
 };
 
+// -----------------------------------------------------------------------
+// GameCamera
 class GameCamera {
 public:
     float view_width;
@@ -28,6 +33,8 @@ public:
     GameCamera(float view_width, Vector2 target);
 };
 
+// -----------------------------------------------------------------------
+// Item
 enum class ItemType {
     NONE,
     WALL,
@@ -43,6 +50,8 @@ public:
     Item(ItemType type, Sprite sprite);
 };
 
+// -----------------------------------------------------------------------
+// Inventory
 class Inventory {
 private:
     int active_item_idx = -1;
@@ -57,35 +66,44 @@ public:
     void clear_active_item();
 };
 
+// -----------------------------------------------------------------------
+// Cell
 class Cell {
 private:
-    uint32_t idx;
-    Rectangle rect;
+    Vector2 position;
 
 public:
     Item item;
 
     Cell();
-    Cell(uint32_t idx, Rectangle rect);
+    Cell(Vector2 position);
 
-    uint32_t get_idx();
-    Rectangle get_rect();
+    Vector2 get_position();
 };
 
+// -----------------------------------------------------------------------
+// Grid
 class Grid {
 private:
     static constexpr uint32_t N_ROWS = 100;
     static constexpr uint32_t N_COLS = 100;
+
+protected:
+    friend class Game;
     std::array<Cell, N_ROWS * N_COLS> cells;
 
 public:
     Grid();
 
     Rectangle get_bound_rect();
+    Cell *get_cell(Vector2 position);
     Vector2 round_position(Vector2 position);
     bool can_place_item(const Item *item, Vector2 position);
+    bool place_item(const Item *item, Vector2 position);
 };
 
+// -----------------------------------------------------------------------
+// Game
 class Game {
 private:
     Renderer renderer;
@@ -97,11 +115,13 @@ private:
     Inventory inventory;
 
     void update();
-    void draw();
-
     void update_input();
-    void update_and_draw_quickbar();
+    void update_active_item_placement();
+
+    void draw();
+    void draw_grid_items();
     void draw_active_item_ghost();
+    void update_and_draw_quickbar();
 
 public:
     Game();
