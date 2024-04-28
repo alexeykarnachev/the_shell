@@ -41,7 +41,7 @@ void Game::update_and_draw_quickbar() {
         if (!is_hovered) {
             renderable.scale = 1.0;
         } else if (this->input.is_lmb_released) {
-            inventory.active_item_idx = i;
+            inventory.set_active_item(i);
             renderable.scale = 1.1;
         } else if (this->input.is_lmb_down) {
             renderable.scale = 0.9;

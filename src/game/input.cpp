@@ -14,6 +14,9 @@ void Game::update_input() {
     this->input.mouse_position_world = get_mouse_position_world(
         screen_size, mouse_position_screen, this->camera
     );
+    this->input.mouse_position_grid = this->grid.round_position(
+        this->input.mouse_position_world
+    );
 
     this->input.is_lmb_pressed = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
     this->input.is_lmb_released = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);

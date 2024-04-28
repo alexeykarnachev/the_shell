@@ -3,7 +3,6 @@
 #include "geometry.hpp"
 #include "raylib.h"
 #include "sprite.hpp"
-#include <vector>
 
 enum class RenderableType {
     CIRCLE, 
