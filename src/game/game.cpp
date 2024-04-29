@@ -38,6 +38,18 @@ Item::Item(ItemType type, Sprite sprite)
     : type(type)
     , sprite(sprite) {}
 
+bool Item::is_wall() {
+    return this->type == ItemType::WALL;
+}
+
+bool Item::is_door() {
+    return this->type == ItemType::DOOR;
+}
+
+bool Item::is_wall_or_door() {
+    return this->is_wall() || this->is_door();
+}
+
 // -----------------------------------------------------------------------
 // Inventory
 Inventory::Inventory() = default;
@@ -94,7 +106,8 @@ Rectangle Grid::get_bound_rect() {
         .x = -(float)N_COLS / 2.0f,
         .y = -(float)N_ROWS / 2.0f,
         .width = (float)N_COLS,
-        .height = (float)N_ROWS};
+        .height = (float)N_ROWS
+    };
     return rect;
 }
 
@@ -129,16 +142,12 @@ WallType Grid::get_wall_type(Vector2 position) {
     Cell *mid = this->get_cell(position);
     if (!mid) return WallType::NONE;
 
-    bool is_wall = mid->item.type == ItemType::WALL;
-    bool is_door = mid->item.type == ItemType::DOOR;
-    if (!is_wall && !is_door) return WallType::NONE;
+    if (!mid->item.is_wall_or_door()) return WallType::NONE;
 
     CellNeighbors nb = this->get_cell_neighbors(position);
     bool walls[4];
     for (int i = 0; i < 4; ++i) {
-        bool is_wall = nb.cells[i]->item.type == ItemType::WALL;
-        bool is_door = nb.cells[i]->item.type == ItemType::DOOR;
-        walls[i] = nb.cells[i] && (is_wall || is_door);
+        walls[i] = nb.cells[i] && nb.cells[i]->item.is_wall_or_door();
     }
 
     bool is_horizontal = walls[0] || walls[2];
@@ -162,11 +171,27 @@ bool Grid::can_place_item(const Item *item, Vector2 position) {
     if (!cell) return false;
 
     switch (item->type) {
-        case ItemType::WALL: return cell->item.type == ItemType::NONE;
-        case ItemType::DOOR:
+        case ItemType::WALL: {
+            if (cell->item.type != ItemType::NONE) return false;
+            CellNeighbors nb = this->get_cell_neighbors(position);
+            for (int i = 0; i < 4; ++i) {
+                Cell *cell = nb.cells[i];
+                if (!cell) continue;
+                bool is_door = cell->item.is_door();
+                auto wall_type = this->get_wall_type(cell->get_position());
+                if (i % 2 == 0) {
+                    if (is_door && wall_type == WallType::VERTICAL) return false;
+                } else {
+                    if (is_door && wall_type == WallType::HORIZONTAL) return false;
+                }
+            }
+            return true;
+        }
+        case ItemType::DOOR: {
             if (cell->item.type != ItemType::WALL) return false;
             if (this->get_wall_type(position) != WallType::NONE) return true;
             return false;
+        }
         case ItemType::NONE: return false;
     }
 }
@@ -200,10 +225,7 @@ Sprite Grid::suggest_item_sprite(
             idx = 1;
             for (int i = 0; i < 4; ++i) {
                 Cell *nb = neighbors.cells[i];
-                if (!nb) continue;
-                bool is_wall = nb->item.type == ItemType::WALL;
-                bool is_door = nb->item.type == ItemType::DOOR;
-                if (is_wall || is_door) {
+                if (nb && nb->item.is_wall_or_door()) {
                     idx += 1 << (4 - i - 1);
                 }
             }

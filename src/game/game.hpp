@@ -48,6 +48,10 @@ public:
 
     Item();
     Item(ItemType type, Sprite sprite);
+
+    bool is_wall();
+    bool is_door();
+    bool is_wall_or_door();
 };
 
 // -----------------------------------------------------------------------
