@@ -143,7 +143,6 @@ void Game::update_input() {
 
 void Game::update_active_item_placement() {
     Vector2 mouse_position = this->mouse_position_grid;
-    // auto player_position = registry.get<Position_C>(this->player);
 
     Item *item = this->get_active_item();
     Cell *cell = this->get_cell(mouse_position);
@@ -366,10 +365,16 @@ Vector2 Game::round_position(Vector2 position) {
 }
 
 bool Game::can_place_item(const Item *item, Vector2 position) {
-    if (!item) return false;
+    static float build_radius = 4.0;
 
     Cell *cell = this->get_cell(position);
+    if (!item) return false;
     if (!cell) return false;
+
+    auto player_position = registry.get<Position_C>(this->player);
+    if (Vector2Distance(position, player_position) > build_radius) {
+        return false;
+    }
 
     switch (item->type) {
         case ItemType::WALL: {
