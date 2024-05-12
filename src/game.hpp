@@ -137,13 +137,10 @@ private:
 
     // -------------------------------------------------------------------
     // other
-
-    // inventory
     Item *get_active_item();
     void set_active_item(int item_idx);
     void clear_active_item();
 
-    // grid
     Rectangle get_bound_rect();
     Cell *get_cell(Vector2 position);
     CellNeighbors get_cell_neighbors(Vector2 position);

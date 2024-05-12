@@ -8,30 +8,6 @@
 
 namespace the_shell {
 // -----------------------------------------------------------------------
-// cell
-Cell::Cell() = default;
-
-Cell::Cell(Vector2 position)
-    : position(position) {}
-
-Vector2 Cell::get_position() {
-    return this->position;
-}
-
-Rectangle Cell::get_rect() {
-    return {
-        .x = this->position.x - 0.5f,
-        .y = this->position.y - 0.5f,
-        .width = 1.0,
-        .height = 1.0
-    };
-}
-
-CellNeighbors::CellNeighbors() {
-    this->cells.fill(nullptr);
-}
-
-// -----------------------------------------------------------------------
 // camera
 Camera::Camera(float view_width, Vector2 target)
     : view_width(view_width)
@@ -62,6 +38,30 @@ bool Item::is_wall_or_door() {
 }
 
 // -----------------------------------------------------------------------
+// cell
+Cell::Cell() = default;
+
+Cell::Cell(Vector2 position)
+    : position(position) {}
+
+Vector2 Cell::get_position() {
+    return this->position;
+}
+
+Rectangle Cell::get_rect() {
+    return {
+        .x = this->position.x - 0.5f,
+        .y = this->position.y - 0.5f,
+        .width = 1.0,
+        .height = 1.0
+    };
+}
+
+CellNeighbors::CellNeighbors() {
+    this->cells.fill(nullptr);
+}
+
+// -----------------------------------------------------------------------
 // components
 struct Position_C : public Vector2 {
     Position_C(const Vector2 &vec)
@@ -69,20 +69,6 @@ struct Position_C : public Vector2 {
 };
 
 struct Renderable_C : public Renderable {};
-
-Vector2 get_mouse_position_world(
-    Vector2 screen_size, Vector2 mouse_position_screen, Camera &camera
-) {
-    Vector2 cursor = Vector2Divide(mouse_position_screen, screen_size);
-    float aspect = screen_size.x / screen_size.y;
-    float view_height = camera.view_width / aspect;
-    Vector2 center = camera.target;
-    float left = center.x - 0.5 * camera.view_width;
-    float top = center.y - 0.5 * view_height;
-    float x = left + camera.view_width * cursor.x;
-    float y = top + view_height * cursor.y;
-    return {x, y};
-}
 
 // -----------------------------------------------------------------------
 // game
@@ -140,9 +126,19 @@ void Game::update_input() {
     Vector2 mouse_position_screen = GetMousePosition();
 
     this->mouse_position_screen = mouse_position_screen;
-    this->mouse_position_world = get_mouse_position_world(
-        screen_size, mouse_position_screen, this->camera
-    );
+
+    {  // mouse_position_world
+        Vector2 cursor = Vector2Divide(mouse_position_screen, screen_size);
+        float aspect = screen_size.x / screen_size.y;
+        float view_height = camera.view_width / aspect;
+        Vector2 center = camera.target;
+        float left = center.x - 0.5 * camera.view_width;
+        float top = center.y - 0.5 * view_height;
+        float x = left + camera.view_width * cursor.x;
+        float y = top + view_height * cursor.y;
+        this->mouse_position_world = {.x = x, .y = y};
+    }
+
     this->mouse_position_grid = this->round_position(this->mouse_position_world);
 
     this->is_lmb_pressed = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
