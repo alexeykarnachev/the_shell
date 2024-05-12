@@ -92,12 +92,12 @@ Game::Game()
 
     // -------------------------------------------------------------------
     // grid
-    Rectangle bound_rect = this->get_bound_rect();
+    Rectangle world_rect = this->get_world_rect();
     for (uint32_t idx = 0; idx < N_ROWS * N_COLS; ++idx) {
         uint32_t row = idx / N_COLS;
         uint32_t col = idx % N_COLS;
-        float x = bound_rect.x + (float)col + 0.5;
-        float y = bound_rect.y + (float)row + 0.5;
+        float x = world_rect.x + (float)col + 0.5;
+        float y = world_rect.y + (float)row + 0.5;
         Vector2 position = {x, y};
         this->cells[idx] = Cell(position);
     }
@@ -328,7 +328,7 @@ void Game::clear_active_item() {
     this->active_item_idx = -1;
 }
 
-Rectangle Game::get_bound_rect() {
+Rectangle Game::get_world_rect() {
     static Rectangle rect = {
         .x = -(float)N_COLS / 2.0f,
         .y = -(float)N_ROWS / 2.0f,
@@ -339,11 +339,11 @@ Rectangle Game::get_bound_rect() {
 }
 
 Cell *Game::get_cell(Vector2 position) {
-    Rectangle bound_rect = this->get_bound_rect();
-    if (!CheckCollisionPointRec(position, bound_rect)) return nullptr;
+    Rectangle world_rect = this->get_world_rect();
+    if (!CheckCollisionPointRec(position, world_rect)) return nullptr;
 
-    uint32_t col = position.x - bound_rect.x;
-    uint32_t row = position.y - bound_rect.y;
+    uint32_t col = position.x - world_rect.x;
+    uint32_t row = position.y - world_rect.y;
     uint32_t idx = row * N_ROWS + col;
 
     if (idx >= N_ROWS * N_COLS) return nullptr;
@@ -363,6 +363,17 @@ CellNeighbors Game::get_cell_neighbors(Vector2 position) {
     }
 
     return nb;
+}
+
+Rectangle Game::get_occupied_rect(Vector2 position) {
+    float left_x = std::floor(position.x - 0.5);
+    float right_x = std::ceil(position.x + 0.5);
+    float top_y = std::floor(position.y - 0.5);
+    float bot_y = std::ceil(position.y + 0.5);
+    float width = right_x - left_x;
+    float height = bot_y - top_y;
+
+    return {.x = left_x, .y = top_y, .width = width, .height = height};
 }
 
 WallType Game::get_wall_type(Vector2 position) {
@@ -401,6 +412,15 @@ bool Game::can_place_item(const Item *item, Vector2 position) {
     auto player_position = registry.get<Position_C>(this->player);
     if (Vector2Distance(position, player_position) > build_radius) {
         return false;
+    }
+
+    auto view = registry.view<Position_C>();
+    for (auto entity : view) {
+        auto [e_pos] = view.get(entity);
+        Rectangle rect = this->get_occupied_rect(e_pos);
+        if (CheckCollisionPointRec(position, rect)) {
+            return false;
+        }
     }
 
     switch (item->type) {

@@ -141,7 +141,8 @@ private:
     void set_active_item(int item_idx);
     void clear_active_item();
 
-    Rectangle get_bound_rect();
+    Rectangle get_world_rect();
+    Rectangle get_occupied_rect(Vector2 position);
     Cell *get_cell(Vector2 position);
     CellNeighbors get_cell_neighbors(Vector2 position);
     WallType get_wall_type(Vector2 position);
