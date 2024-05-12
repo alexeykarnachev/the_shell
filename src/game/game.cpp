@@ -6,6 +6,14 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <stdio.h>
+
+struct Position_C : public Vector2 {
+    Position_C(const Vector2 &vec)
+        : Vector2{vec.x, vec.y} {}
+};
+
+struct Renderable_C : public Renderable {};
 
 Vector2 get_mouse_position_world(
     Vector2 screen_size, Vector2 mouse_position_screen, GameCamera &camera
@@ -28,6 +36,12 @@ Game::Game()
     SpriteSheet &sheet = this->resources.sprite_sheet;
     this->inventory.items.emplace_back(ItemType::WALL, sheet.get_sprite(sheet_0::wall));
     this->inventory.items.emplace_back(ItemType::DOOR, sheet.get_sprite(sheet_0::door));
+
+    this->player = this->registry.create();
+    this->registry.emplace<Position_C>(this->player, Position_C({0.0, 0.0}));
+    this->registry.emplace<Renderable_C>(
+        this->player, Renderable_C::create_circle(0.5, 1.0, BLUE)
+    );
 }
 
 void Game::run() {
@@ -40,12 +54,14 @@ void Game::run() {
 void Game::update() {
     this->update_input();
     this->update_active_item_placement();
+    this->update_player();
 }
 
 void Game::draw() {
     this->renderer.begin_drawing();
 
     this->renderer.set_camera(this->camera.target, this->camera.view_width);
+    this->draw_renderables();
     this->draw_grid_items();
     this->draw_active_item_ghost();
 
@@ -57,6 +73,8 @@ void Game::draw() {
 }
 
 void Game::update_input() {
+    this->dt = GetFrameTime();
+
     Vector2 screen_size = this->renderer.get_screen_size();
     Vector2 mouse_position_screen = GetMousePosition();
 
@@ -69,6 +87,11 @@ void Game::update_input() {
     this->is_lmb_pressed = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
     this->is_lmb_released = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
     this->is_lmb_down = IsMouseButtonDown(MOUSE_LEFT_BUTTON);
+
+    this->is_w_down = IsKeyDown(KEY_W);
+    this->is_s_down = IsKeyDown(KEY_S);
+    this->is_a_down = IsKeyDown(KEY_A);
+    this->is_d_down = IsKeyDown(KEY_D);
 }
 
 void Game::update_active_item_placement() {
@@ -83,6 +106,28 @@ void Game::update_active_item_placement() {
     if (!this->grid.can_place_item(item, position)) return;
 
     grid.place_item(item, position, this->resources.sprite_sheet);
+}
+
+void Game::update_player() {
+    static float speed = 3.0;
+
+    auto &position = registry.get<Position_C>(this->player);
+    Vector2 step = Vector2Zero();
+    if (this->is_w_down) step.y -= 1.0;
+    if (this->is_s_down) step.y += 1.0;
+    if (this->is_a_down) step.x -= 1.0;
+    if (this->is_d_down) step.x += 1.0;
+
+    step = Vector2Scale(Vector2Normalize(step), this->dt * speed);
+    position = Position_C(Vector2Add(step, position));
+}
+
+void Game::draw_renderables() {
+    auto view = this->registry.view<Renderable_C, Position_C>();
+    for (auto entity : view) {
+        auto [renderable, position] = view.get(entity);
+        renderer.draw_renderable(renderable, position);
+    }
 }
 
 void Game::draw_grid_items() {
