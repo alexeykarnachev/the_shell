@@ -2,10 +2,18 @@
 
 #include "core/renderer.hpp"
 #include "core/resources.hpp"
+#include "entt/entity/entity.hpp"
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
+#include <array>
 
 namespace the_shell {
+// -----------------------------------------------------------------------
+// constants
+static constexpr uint32_t grid_n_rows = 100;
+static constexpr uint32_t grid_n_cols = 100;
+static const float door_open_dist = 2.0;
+
 // -----------------------------------------------------------------------
 // sheet indexes
 namespace sheet_0 {
@@ -41,6 +49,7 @@ public:
 // item
 class Item {
 public:
+    entt::entity entity = entt::null;
     ItemType type = ItemType::NONE;
     Sprite sprite;
 
@@ -71,9 +80,11 @@ public:
 
 class CellNeighbors {
 public:
-    std::array<Cell *, 4> cells;
+    std::array<Cell *, 8> cells;
 
     CellNeighbors();
+
+    std::array<Cell *, 4> get_orthos();
 };
 
 // -----------------------------------------------------------------------
@@ -87,9 +98,7 @@ private:
 
     // -------------------------------------------------------------------
     // grid
-    static constexpr uint32_t N_ROWS = 100;
-    static constexpr uint32_t N_COLS = 100;
-    std::array<Cell, N_ROWS * N_COLS> cells;
+    std::array<Cell, grid_n_rows * grid_n_cols> cells;
 
     // -------------------------------------------------------------------
     // inventory
@@ -125,6 +134,7 @@ private:
     void update_input();
     void update_active_item_placement();
     void update_player();
+    void update_doors();
     void update_collisions();
 
     // -------------------------------------------------------------------
@@ -148,8 +158,8 @@ private:
     WallType get_wall_type(Vector2 position);
     Vector2 round_position(Vector2 position);
     bool can_place_item(const Item *item, Vector2 position);
-    bool place_item(const Item *item, Vector2 position, SpriteSheet &sheet);
-    Sprite suggest_item_sprite(Vector2 position, ItemType item_type, SpriteSheet &sheet);
+    bool place_item(const Item *item, Vector2 position);
+    uint32_t suggest_item_sprite_idx(Vector2 position, ItemType item_type);
 
 public:
     Game();

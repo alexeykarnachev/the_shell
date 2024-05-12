@@ -61,6 +61,10 @@ CellNeighbors::CellNeighbors() {
     this->cells.fill(nullptr);
 }
 
+std::array<Cell *, 4> CellNeighbors::get_orthos() {
+    return {cells[0], cells[2], cells[4], cells[6]};
+}
+
 // -----------------------------------------------------------------------
 // components
 struct Position_C : public Vector2 {
@@ -68,6 +72,8 @@ struct Position_C : public Vector2 {
         : Vector2{vec.x, vec.y} {}
 };
 
+struct Door_C {};
+struct ResolveCollision_C {};
 struct Renderable_C : public Renderable {};
 
 // -----------------------------------------------------------------------
@@ -86,6 +92,7 @@ Game::Game()
     // entities
     this->player = this->registry.create();
     this->registry.emplace<Position_C>(this->player, Position_C({0.0, 0.0}));
+    this->registry.emplace<ResolveCollision_C>(this->player);
     this->registry.emplace<Renderable_C>(
         this->player, Renderable_C::create_circle(0.5, 1.0, BLUE)
     );
@@ -93,9 +100,9 @@ Game::Game()
     // -------------------------------------------------------------------
     // grid
     Rectangle world_rect = this->get_world_rect();
-    for (uint32_t idx = 0; idx < N_ROWS * N_COLS; ++idx) {
-        uint32_t row = idx / N_COLS;
-        uint32_t col = idx % N_COLS;
+    for (uint32_t idx = 0; idx < grid_n_rows * grid_n_cols; ++idx) {
+        uint32_t row = idx / grid_n_cols;
+        uint32_t col = idx % grid_n_cols;
         float x = world_rect.x + (float)col + 0.5;
         float y = world_rect.y + (float)row + 0.5;
         Vector2 position = {x, y};
@@ -116,6 +123,7 @@ void Game::update() {
     this->update_input();
     this->update_active_item_placement();
     this->update_player();
+    this->update_doors();
     this->update_collisions();
 }
 
@@ -163,7 +171,7 @@ void Game::update_active_item_placement() {
     if (!this->is_lmb_down) return;
     if (!this->can_place_item(item, mouse_position)) return;
 
-    this->place_item(item, mouse_position, this->resources.sprite_sheet);
+    this->place_item(item, mouse_position);
 }
 
 void Game::update_player() {
@@ -180,8 +188,25 @@ void Game::update_player() {
     position = Position_C(Vector2Add(step, position));
 }
 
+void Game::update_doors() {
+    auto player_position = registry.get<Position_C>(this->player);
+
+    auto view = registry.view<Cell *, Door_C>();
+    for (auto entity : view) {
+        auto [cell] = view.get(entity);
+        Vector2 cell_position = cell->get_position();
+        auto sprite_idx = this->suggest_item_sprite_idx(cell_position, ItemType::DOOR);
+        if (Vector2Distance(player_position, cell_position) <= door_open_dist) {
+            sprite_idx += 2;
+        }
+        cell->item.sprite = this->resources.sprite_sheet.get_sprite(sprite_idx);
+    }
+}
+
 void Game::update_collisions() {
-    auto view = registry.view<Position_C>();
+    auto player_position = registry.get<Position_C>(this->player);
+
+    auto view = registry.view<Position_C, ResolveCollision_C>();
     for (auto entity : view) {
         auto [position] = view.get(entity);
 
@@ -189,6 +214,12 @@ void Game::update_collisions() {
         for (uint32_t i = 0; i < nb.cells.size(); ++i) {
             Cell *cell = nb.cells[i];
             if (!cell || cell->item.is_none()) continue;
+            if (cell->item.is_door()) {
+                if (Vector2Distance(player_position, cell->get_position())
+                    <= door_open_dist) {
+                    continue;
+                }
+            }
 
             Rectangle rect = cell->get_rect();
             Vector2 mtv = get_circle_rect_mtv(position, 0.5, rect);
@@ -250,8 +281,8 @@ void Game::draw_active_item_ghost() {
 
     float base_scale = 1.0 / item->sprite.src.width;
 
-    Sprite sprite = this->suggest_item_sprite(
-        position, item->type, this->resources.sprite_sheet
+    Sprite sprite = this->resources.sprite_sheet.get_sprite(
+        this->suggest_item_sprite_idx(position, item->type)
     );
     Renderable renderable = Renderable::create_sprite(
         sprite, Pivot::CENTER_CENTER, base_scale, 1.0, color
@@ -330,10 +361,10 @@ void Game::clear_active_item() {
 
 Rectangle Game::get_world_rect() {
     static Rectangle rect = {
-        .x = -(float)N_COLS / 2.0f,
-        .y = -(float)N_ROWS / 2.0f,
-        .width = (float)N_COLS,
-        .height = (float)N_ROWS
+        .x = -(float)grid_n_cols / 2.0f,
+        .y = -(float)grid_n_rows / 2.0f,
+        .width = (float)grid_n_cols,
+        .height = (float)grid_n_rows
     };
     return rect;
 }
@@ -344,9 +375,9 @@ Cell *Game::get_cell(Vector2 position) {
 
     uint32_t col = position.x - world_rect.x;
     uint32_t row = position.y - world_rect.y;
-    uint32_t idx = row * N_ROWS + col;
+    uint32_t idx = row * grid_n_rows + col;
 
-    if (idx >= N_ROWS * N_COLS) return nullptr;
+    if (idx >= grid_n_rows * grid_n_cols) return nullptr;
     return &this->cells[idx];
 }
 
@@ -357,9 +388,16 @@ CellNeighbors Game::get_cell_neighbors(Vector2 position) {
     if (mid) {
         Vector2 p = mid->get_position();
         nb.cells[0] = this->get_cell({p.x - 1.0f, p.y});
-        nb.cells[1] = this->get_cell({p.x, p.y - 1.0f});
-        nb.cells[2] = this->get_cell({p.x + 1.0f, p.y});
-        nb.cells[3] = this->get_cell({p.x, p.y + 1.0f});
+        nb.cells[1] = this->get_cell({p.x - 1.0f, p.y - 1.0f});
+
+        nb.cells[2] = this->get_cell({p.x, p.y - 1.0f});
+        nb.cells[3] = this->get_cell({p.x + 1.0f, p.y - 1.0f});
+
+        nb.cells[4] = this->get_cell({p.x + 1.0f, p.y});
+        nb.cells[5] = this->get_cell({p.x + 1.0f, p.y + 1.0f});
+
+        nb.cells[6] = this->get_cell({p.x, p.y + 1.0f});
+        nb.cells[7] = this->get_cell({p.x - 1.0f, p.y + 1.0f});
     }
 
     return nb;
@@ -382,10 +420,10 @@ WallType Game::get_wall_type(Vector2 position) {
 
     if (!mid->item.is_wall_or_door()) return WallType::NONE;
 
-    CellNeighbors nb = this->get_cell_neighbors(position);
+    auto nb = this->get_cell_neighbors(position).get_orthos();
     bool walls[4];
     for (int i = 0; i < 4; ++i) {
-        walls[i] = nb.cells[i] && nb.cells[i]->item.is_wall_or_door();
+        walls[i] = nb[i] && nb[i]->item.is_wall_or_door();
     }
 
     bool is_horizontal = walls[0] || walls[2];
@@ -414,7 +452,7 @@ bool Game::can_place_item(const Item *item, Vector2 position) {
         return false;
     }
 
-    auto view = registry.view<Position_C>();
+    auto view = registry.view<Position_C, ResolveCollision_C>();
     for (auto entity : view) {
         auto [e_pos] = view.get(entity);
         Rectangle rect = this->get_occupied_rect(e_pos);
@@ -426,9 +464,9 @@ bool Game::can_place_item(const Item *item, Vector2 position) {
     switch (item->type) {
         case ItemType::WALL: {
             if (cell->item.type != ItemType::NONE) return false;
-            CellNeighbors nb = this->get_cell_neighbors(position);
+            auto nb = this->get_cell_neighbors(position).get_orthos();
             for (int i = 0; i < 4; ++i) {
-                Cell *cell = nb.cells[i];
+                Cell *cell = nb[i];
                 if (!cell) continue;
                 bool is_door = cell->item.is_door();
                 auto wall_type = this->get_wall_type(cell->get_position());
@@ -450,52 +488,57 @@ bool Game::can_place_item(const Item *item, Vector2 position) {
     }
 }
 
-bool Game::place_item(const Item *item, Vector2 position, SpriteSheet &sheet) {
+bool Game::place_item(const Item *item, Vector2 position) {
     if (!this->can_place_item(item, position)) return false;
 
     Cell *cell = this->get_cell(position);
     cell->item = *item;
 
-    cell->item.sprite = this->suggest_item_sprite(
-        cell->get_position(), cell->item.type, sheet
+    switch (cell->item.type) {
+        case the_shell::ItemType::DOOR:
+            cell->item.entity = this->registry.create();
+            this->registry.emplace<Door_C>(cell->item.entity);
+            this->registry.emplace<Cell *>(cell->item.entity, cell);
+            break;
+        default: break;
+    }
+
+    cell->item.sprite = this->resources.sprite_sheet.get_sprite(
+        this->suggest_item_sprite_idx(cell->get_position(), cell->item.type)
     );
-    for (Cell *cell : this->get_cell_neighbors(position).cells) {
-        cell->item.sprite = this->suggest_item_sprite(
-            cell->get_position(), cell->item.type, sheet
+    for (Cell *cell : this->get_cell_neighbors(position).get_orthos()) {
+        cell->item.sprite = this->resources.sprite_sheet.get_sprite(
+            this->suggest_item_sprite_idx(cell->get_position(), cell->item.type)
         );
     }
 
     return true;
 }
 
-Sprite Game::suggest_item_sprite(
-    Vector2 position, ItemType item_type, SpriteSheet &sheet
-) {
-    CellNeighbors neighbors = this->get_cell_neighbors(position);
+uint32_t Game::suggest_item_sprite_idx(Vector2 position, ItemType item_type) {
     uint8_t idx = 0;
 
     switch (item_type) {
-        case ItemType::WALL:
+        case ItemType::WALL: {
+            auto nb = this->get_cell_neighbors(position).get_orthos();
             idx = sheet_0::wall;
             for (int i = 0; i < 4; ++i) {
-                Cell *nb = neighbors.cells[i];
-                if (nb && nb->item.is_wall_or_door()) {
+                Cell *cell = nb[i];
+                if (cell && cell->item.is_wall_or_door()) {
                     idx += 1 << (4 - i - 1);
                 }
             }
-            break;
+        } break;
         case ItemType::DOOR: {
             idx = sheet_0::door;
             WallType wall_type = this->get_wall_type(position);
             if (wall_type == WallType::VERTICAL) idx += 1;
-            break;
-        }
+        } break;
         case ItemType::NONE: {
-            break;
-        }
+        } break;
     }
 
-    return sheet.get_sprite(idx);
+    return idx;
 }
 
 }  // namespace the_shell
