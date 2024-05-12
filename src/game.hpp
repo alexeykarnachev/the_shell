@@ -47,6 +47,7 @@ public:
     Item();
     Item(ItemType type, Sprite sprite);
 
+    bool is_none();
     bool is_wall();
     bool is_door();
     bool is_wall_or_door();
@@ -65,6 +66,7 @@ public:
     Cell(Vector2 position);
 
     Vector2 get_position();
+    Rectangle get_rect();
 };
 
 class CellNeighbors {
@@ -123,6 +125,7 @@ private:
     void update_input();
     void update_active_item_placement();
     void update_player();
+    void update_collisions();
 
     // -------------------------------------------------------------------
     // draw

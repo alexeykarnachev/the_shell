@@ -18,6 +18,15 @@ Vector2 Cell::get_position() {
     return this->position;
 }
 
+Rectangle Cell::get_rect() {
+    return {
+        .x = this->position.x - 0.5f,
+        .y = this->position.y - 0.5f,
+        .width = 1.0,
+        .height = 1.0
+    };
+}
+
 CellNeighbors::CellNeighbors() {
     this->cells.fill(nullptr);
 }
@@ -35,6 +44,10 @@ Item::Item() = default;
 Item::Item(ItemType type, Sprite sprite)
     : type(type)
     , sprite(sprite) {}
+
+bool Item::is_none() {
+    return this->type == ItemType::NONE;
+}
 
 bool Item::is_wall() {
     return this->type == ItemType::WALL;
@@ -117,6 +130,7 @@ void Game::update() {
     this->update_input();
     this->update_active_item_placement();
     this->update_player();
+    this->update_collisions();
 }
 
 void Game::update_input() {
@@ -168,6 +182,23 @@ void Game::update_player() {
 
     step = Vector2Scale(Vector2Normalize(step), this->dt * speed);
     position = Position_C(Vector2Add(step, position));
+}
+
+void Game::update_collisions() {
+    auto view = registry.view<Position_C>();
+    for (auto entity : view) {
+        auto [position] = view.get(entity);
+
+        CellNeighbors nb = this->get_cell_neighbors(position);
+        for (uint32_t i = 0; i < nb.cells.size(); ++i) {
+            Cell *cell = nb.cells[i];
+            if (!cell || cell->item.is_none()) continue;
+
+            Rectangle rect = cell->get_rect();
+            Vector2 mtv = get_circle_rect_mtv(position, 0.5, rect);
+            position = Vector2Add(position, mtv);
+        }
+    }
 }
 
 // -----------------------------------------------------------------------
